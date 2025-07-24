@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CineMatch - Your Movie Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Dark Neutrals with Subtle Red Accents -->
+    <!-- Application Structure Plan: The application is structured as a single-page dashboard. It features a sticky header for navigation, search, and global AI features. A dynamic hero section highlights a featured movie. The main content area organizes movies into horizontally scrollable categories (rows), mimicking streaming platforms. Modals are used for movie details, AI recommendations, AI synopsis, and mood-based recommendations, ensuring a focused user interaction without navigating away from the main page. This structure prioritizes intuitive content discovery and interactive exploration. -->
+    <!-- Visualization & Content Choices: 
+        - Movie Display: Movies are presented as interactive cards within horizontal scrollable rows. Goal: Enable easy browsing and discovery. Method: HTML/CSS flexbox for rows, individual HTML/CSS cards. Interaction: Hover effects on cards, click to open detail modal.
+        - Hero Section: A large, dynamic banner showcasing a featured movie. Goal: Highlight key content and provide immediate engagement. Method: HTML/CSS with background image and overlay. Interaction: Auto-cycling featured movie, "More Info" button opens detail modal.
+        - Search & Filter: Input field for title search and dropdown for genre filtering. Goal: Allow users to quickly find specific content or narrow down choices. Method: HTML input and select elements, JavaScript for filtering logic. Interaction: Typing/selecting updates displayed movies in real-time.
+        - AI Recommendations: A modal displaying AI-generated similar movie suggestions based on a selected movie. Goal: Enhance discovery through personalized suggestions. Method: HTML/CSS modal, JavaScript fetch to Gemini API. Interaction: Button click triggers AI, results displayed in modal.
+        - AI Synopsis: A modal displaying an AI-generated concise synopsis for a selected movie. Goal: Provide quick, dynamic plot summaries. Method: HTML/CSS modal, JavaScript fetch to Gemini API. Interaction: Button click triggers AI, results displayed in modal.
+        - Mood-Based Recommendations: A modal allowing users to input a mood and receive AI-generated movie suggestions from the dataset. Goal: Facilitate discovery based on emotional preference. Method: HTML/CSS modal with input, JavaScript fetch to Gemini API. Interaction: Input text, button click triggers AI, results displayed.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #141414; /* Dark Netflix-like background */
+            color: #e5e5e5;
+            overflow-x: hidden; /* Prevent horizontal scroll from layout issues */
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.75);
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            z-index: 1001;
+        }
+        .loading-spinner {
+            border-top-color: #e50914;
+            border-right-color: #e50914;
+            border-bottom-color: #e50914;
+            border-left-color: transparent;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Header -->
+    <header class="bg-gradient-to-b from-black to-transparent p-4 md:p-6 flex flex-col md:flex-row justify-between items-center sticky top-0 z-40">
+        <div class="flex items-center justify-between w-full md:w-auto mb-4 md:mb-0">
+            <h1 class="text-4xl font-extrabold text-[#e50914] mr-8">
+                CineMatch
+            </h1>
+            <nav class="hidden md:flex space-x-6 text-lg font-medium text-gray-300">
+                <a href="#" class="hover:text-white transition-colors duration-200">Home</a>
+                <a href="#" class="hover:text-white transition-colors duration-200">Movies</a>
+                <a href="#" class="hover:text-white transition-colors duration-200">TV Shows</a>
+                <a href="#" class="hover:text-white transition-colors duration-200">My List</a>
+            </nav>
+        </div>
+        <div class="flex flex-col md:flex-row items-center w-full md:w-auto space-y-4 md:space-y-0 md:space-x-4">
+            <input
+                type="text"
+                id="searchTermInput"
+                placeholder="Search movies..."
+                class="bg-gray-800 text-white p-3 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-[#e50914] w-full md:w-auto"
+            />
+            <select
+                id="genreFilterSelect"
+                class="bg-gray-800 text-white p-3 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-[#e50914] w-full md:w-auto"
+            >
+                <option value="All">All Genres</option>
+            </select>
+            <button
+                id="moodRecommendationsBtn"
+                class="bg-purple-700 hover:bg-purple-800 text-white font-bold py-3 px-6 rounded-lg transition duration-300 transform hover:scale-105 w-full md:w-auto flex items-center justify-center"
+            >
+                Get ✨Mood-Based Recommendations
+            </button>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section id="heroSection" class="relative h-[60vh] md:h-[70vh] bg-cover bg-center flex items-end pb-12 px-4 md:px-8 transition-all duration-500 ease-in-out">
+        <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
+        <div class="relative z-10 max-w-2xl">
+            <h2 id="heroTitle" class="text-5xl md:text-7xl font-extrabold text-white mb-4 drop-shadow-lg"></h2>
+            <p id="heroDescription" class="text-lg text-gray-200 mb-6 line-clamp-3 drop-shadow-md"></p>
+            <div class="flex space-x-4">
+                <button class="bg-white text-black font-bold py-3 px-8 rounded-lg flex items-center transition duration-300 hover:bg-gray-300">
+                    <span class="text-2xl mr-2">▶</span> Play
+                </button>
+                <button id="heroMoreInfoBtn" class="bg-gray-700 bg-opacity-70 text-white font-bold py-3 px-8 rounded-lg flex items-center transition duration-300 hover:bg-opacity-90">
+                    <span class="text-2xl mr-2">ⓘ</span> More Info
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content - Movie Categories/Rows -->
+    <main class="container mx-auto p-4 md:p-8 -mt-24 relative z-20">
+        <div id="movieRowsContainer">
+            <!-- Movie rows will be dynamically inserted here -->
+        </div>
+        <p id="noMoviesFound" class="text-center text-gray-400 text-xl mt-16 hidden">
+            No movies found matching your criteria.
+        </p>
+    </main>
+
+    <!-- Movie Details Modal -->
+    <div id="movieDetailsModal" class="fixed inset-0 modal-overlay hidden items-center justify-center p-4">
+        <div class="modal-content rounded-lg shadow-xl p-6 max-w-lg w-full relative">
+            <button id="closeDetailsModalBtn" class="absolute top-3 right-3 text-gray-400 hover:text-white text-2xl font-bold">&times;</button>
+            <h2 id="modalMovieTitle" class="text-3xl font-bold text-white mb-4"></h2>
+            <img id="modalMovieImage" src="" alt="" class="w-full h-72 object-cover rounded-lg mb-4" onerror="this.onerror=null;this.src='https://placehold.co/400x600/000000/FFFFFF?text=Image+Not+Found';" />
+            <p class="text-gray-300 text-lg mb-2"><span class="font-semibold">Genre:</span> <span id="modalMovieGenre"></span></p>
+            <p id="modalMovieDescription" class="text-gray-300 text-base mb-6"></p>
+
+            <div class="flex flex-col space-y-4">
+                <button id="getAIRecommendationsBtn" class="w-full bg-[#e50914] hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 transform hover:scale-105 flex items-center justify-center">
+                    Get AI Recommendations ✨
+                </button>
+                <button id="generateAISynopsisBtn" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 px-6 rounded-lg transition duration-300 transform hover:scale-105 flex items-center justify-center">
+                    Generate AI Synopsis ✨
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recommendation Modal -->
+    <div id="recommendationModal" class="fixed inset-0 modal-overlay hidden items-center justify-center p-4">
+        <div class="modal-content rounded-lg shadow-xl p-6 max-w-lg w-full relative">
+            <button id="closeRecommendationModalBtn" class="absolute top-3 right-3 text-gray-400 hover:text-white text-2xl font-bold">&times;</button>
+            <h2 class="text-3xl font-bold text-white mb-4">AI Recommendations</h2>
+            <div id="recommendationLoading" class="flex items-center justify-center py-8 hidden">
+                <div class="loading-spinner rounded-full h-12 w-12 border-b-2"></div>
+                <p class="ml-4 text-gray-300">Generating recommendations...</p>
+            </div>
+            <p id="recommendationText" class="text-gray-300 whitespace-pre-wrap"></p>
+        </div>
+    </div>
+
+    <!-- Synopsis Modal -->
+    <div id="synopsisModal" class="fixed inset-0 modal-overlay hidden items-center justify-center p-4">
+        <div class="modal-content rounded-lg shadow-xl p-6 max-w-lg w-full relative">
+            <button id="closeSynopsisModalBtn" class="absolute top-3 right-3 text-gray-400 hover:text-white text-2xl font-bold">&times;</button>
+            <h2 class="text-3xl font-bold text-white mb-4">AI Synopsis</h2>
+            <div id="synopsisLoading" class="flex items-center justify-center py-8 hidden">
+                <div class="loading-spinner rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                <p class="ml-4 text-gray-300">Generating synopsis...</p>
+            </div>
+            <p id="synopsisText" class="text-gray-300 whitespace-pre-wrap"></p>
+        </div>
+    </div>
+
+    <!-- Mood Recommendation Modal -->
+    <div id="moodRecommendationModal" class="fixed inset-0 modal-overlay hidden items-center justify-center p-4">
+        <div class="modal-content rounded-lg shadow-xl p-6 max-w-lg w-full relative">
+            <button id="closeMoodRecommendationModalBtn" class="absolute top-3 right-3 text-gray-400 hover:text-white text-2xl font-bold">&times;</button>
+            <h2 class="text-3xl font-bold text-white mb-4">Mood-Based Recommendations</h2>
+            <input
+                type="text"
+                id="moodInput"
+                placeholder="e.g., 'uplifting', 'thrilling', 'relaxing'"
+                class="bg-gray-800 text-white p-3 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-[#e50914] w-full mb-4"
+            />
+            <button
+                id="getMoodRecommendationsBtn"
+                class="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-3 px-6 rounded-lg transition duration-300 transform hover:scale-105 flex items-center justify-center mb-4"
+            >
+                Get Recommendations ✨
+            </button>
+            <div id="moodRecommendationLoading" class="flex items-center justify-center py-8 hidden">
+                <div class="loading-spinner rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+                <p class="ml-4 text-gray-300">Generating mood recommendations...</p>
+            </div>
+            <p id="moodRecommendationText" class="text-gray-300 whitespace-pre-wrap"></p>
+        </div>
+    </div>
+
+    <script>
+        const moviesData = [
+            { id: 1, title: "The Great Adventure", genre: "Adventure", description: "A thrilling journey through uncharted lands, filled with peril and discovery.", imageUrl: "https://placehold.co/400x600/E50914/FFFFFF?text=Adventure+1", category: "Trending Now" },
+            { id: 2, title: "Mystery of the Old House", genre: "Mystery", description: "A seasoned detective unravels dark secrets hidden within a haunted, abandoned mansion.", imageUrl: "https://placehold.co/400x600/E50914/FFFFFF?text=Mystery+1", category: "New Releases" },
+            { id: 3, title: "Romantic Rendezvous", genre: "Romance", description: "Two strangers find unexpected love during a chance encounter in a vibrant European city.", imageUrl: "https://placehold.co/400x600/E50914/FFFFFF?text=Romance+1", category: "Because You Watched..." },
+            { id: 4, title: "Sci-Fi Odyssey", genre: "Science Fiction", description: "Humanity's last hope lies in a perilous voyage to a distant galaxy, facing unknown cosmic threats.", imageUrl: "https://placehold.co/400x600/E50914/FFFFFF?text=Sci-Fi+1", category: "Trending Now" },
+            { id: 5, title: "Comedy Central", genre: "Comedy", description: "A group of eccentric friends gets into a series of hilarious and chaotic situations.", imageUrl: "https://placehold.co/400x600/E50914/FFFFFF?text=Comedy+1", category: "New Releases" },
+            { id: 6, title: "Action Packed", genre: "Action", description: "High-octane stunts, explosive car chases, and non-stop thrills define this adrenaline-fueled movie.", imageUrl: "https://placehold.co/400x600/E50914/FFFFFF?text=Action+1", category: "Trending Now" },
+            { id: 7, title: "The Historical Epic", genre: "History", description: "A grand tale of ancient civilizations, chronicling their rise, fall, and legendary figures.", imageUrl: "https://placehold.co/400x600/E50914/FFFFFF?text=History+1", category: "Because You Watched..." },
+            { id: 8, title: "Fantasy Realm", genre: "Fantasy", description: "Magic, dragons, and a heroic quest to save a mystical world from an ancient evil.", imageUrl: "https://placehold.co/400x600/E50914/FFFFFF?text=Fantasy+1", category: "New Releases" },
+            { id: 9, title: "Documentary Insight", genre: "Documentary", description: "An insightful exploration into the depths of the ocean and its mysterious inhabitants.", imageUrl: "https://placehold.co/400x600/E50914/FFFFFF?text=Documentary+1", category: "Trending Now" },
+            { id: 10, title: "Horror Night", genre: "Horror", description: "A terrifying night unfolds in a secluded cabin, as a group of friends faces an unknown horror.", imageUrl: "https://placehold.co/400x600/E50914/FFFFFF?text=Horror+1", category: "Because You Watched..." },
+            { id: 11, title: "Journey to the Stars", genre: "Science Fiction", description: "An astronaut's solitary voyage to the edge of the universe, searching for a new home.", imageUrl: "https://placehold.co/400x600/E50914/FFFFFF?text=Sci-Fi+2", category: "New Releases" },
+            { id: 12, title: "The Last Laugh", genre: "Comedy", description: "A stand-up comedian's final, unforgettable performance, filled with unexpected twists.", imageUrl: "https://placehold.co/400x600/E50914/FFFFFF?text=Comedy+2", category: "Trending Now" },
+            { id: 13, title: "Whispers in the Dark", genre: "Mystery", description: "A chilling cold case reopens old wounds and reveals a sinister conspiracy.", imageUrl: "https://placehold.co/400x600/E50914/FFFFFF?text=Mystery+2", category: "Because You Watched..." },
+            { id: 14, title: "Eternal Embrace", genre: "Romance", description: "A timeless love story that transcends generations and defies all odds.", imageUrl: "https://placehold.co/400x600/E50914/FFFFFF?text=Romance+2", category: "New Releases" },
+            { id: 15, title: "Wilderness Survival", genre: "Adventure", description: "Stranded deep in the wild, a lone survivor battles the elements and their inner demons.", imageUrl: "https://placehold.co/400x600/E50914/FFFFFF?text=Adventure+2", category: "Trending Now" }
+        ];
+
+        const genres = ["All", ...new Set(moviesData.map(movie => movie.genre))];
+        const categories = [...new Set(moviesData.map(movie => movie.category))];
+
+        let currentFeaturedMovieIndex = 0;
+        let selectedMovie = null;
+        let currentSearchTerm = "";
+        let currentSelectedGenre = "All";
+        let moodInputText = "";
+
+        const heroSection = document.getElementById('heroSection');
+        const heroTitle = document.getElementById('heroTitle');
+        const heroDescription = document.getElementById('heroDescription');
+        const heroMoreInfoBtn = document.getElementById('heroMoreInfoBtn');
+
+        const searchTermInput = document.getElementById('searchTermInput');
+        const genreFilterSelect = document.getElementById('genreFilterSelect');
+        const movieRowsContainer = document.getElementById('movieRowsContainer');
+        const noMoviesFound = document.getElementById('noMoviesFound');
+
+        const movieDetailsModal = document.getElementById('movieDetailsModal');
+        const closeDetailsModalBtn = document.getElementById('closeDetailsModalBtn');
+        const modalMovieTitle = document.getElementById('modalMovieTitle');
+        const modalMovieImage = document.getElementById('modalMovieImage');
+        const modalMovieGenre = document.getElementById('modalMovieGenre');
+        const modalMovieDescription = document.getElementById('modalMovieDescription');
+        const getAIRecommendationsBtn = document.getElementById('getAIRecommendationsBtn');
+        const generateAISynopsisBtn = document.getElementById('generateAISynopsisBtn');
+
+        const recommendationModal = document.getElementById('recommendationModal');
+        const closeRecommendationModalBtn = document.getElementById('closeRecommendationModalBtn');
+        const recommendationLoading = document.getElementById('recommendationLoading');
+        const recommendationText = document.getElementById('recommendationText');
+
+        const synopsisModal = document.getElementById('synopsisModal');
+        const closeSynopsisModalBtn = document.getElementById('closeSynopsisModalBtn');
+        const synopsisLoading = document.getElementById('synopsisLoading');
+        const synopsisText = document.getElementById('synopsisText');
+
+        const moodRecommendationModal = document.getElementById('moodRecommendationModal');
+        const closeMoodRecommendationModalBtn = document.getElementById('closeMoodRecommendationModalBtn');
+        const moodInput = document.getElementById('moodInput');
+        const getMoodRecommendationsBtn = document.getElementById('getMoodRecommendationsBtn');
+        const moodRecommendationLoading = document.getElementById('moodRecommendationLoading');
+        const moodRecommendationText = document.getElementById('moodRecommendationText');
+        const moodRecommendationsBtn = document.getElementById('moodRecommendationsBtn');
+
+        function updateHeroSection() {
+            const movie = moviesData[currentFeaturedMovieIndex];
+            if (movie) {
+                heroSection.style.backgroundImage = `url(${movie.imageUrl.replace('400x600', '1200x675')})`;
+                heroTitle.textContent = movie.title;
+                heroDescription.textContent = movie.description;
+            }
+        }
+
+        function cycleFeaturedMovie() {
+            currentFeaturedMovieIndex = (currentFeaturedMovieIndex + 1) % moviesData.length;
+            updateHeroSection();
+        }
+
+        function renderMovieCard(movie) {
+            const movieCard = document.createElement('div');
+            movieCard.className = 'relative flex-shrink-0 w-48 h-72 bg-gray-800 rounded-lg shadow-lg overflow-hidden cursor-pointer transform transition duration-300 hover:scale-105 group';
+            movieCard.innerHTML = `
+                <img src="${movie.imageUrl}" alt="${movie.title}" class="w-full h-full object-cover rounded-lg" onerror="this.onerror=null;this.src='https://placehold.co/400x600/000000/FFFFFF?text=Image+Not+Found';" />
+                <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+                    <h3 class="text-lg font-semibold text-white mb-1 truncate">${movie.title}</h3>
+                    <p class="text-gray-300 text-xs">${movie.genre}</p>
+                </div>
+            `;
+            movieCard.addEventListener('click', () => showMovieDetails(movie));
+            return movieCard;
+        }
+
+        function renderMovieRows() {
+            movieRowsContainer.innerHTML = '';
+            let moviesFound = false;
+
+            categories.forEach(category => {
+                const filteredMovies = moviesData.filter(movie =>
+                    movie.category === category &&
+                    (currentSelectedGenre === "All" || movie.genre === currentSelectedGenre) &&
+                    movie.title.toLowerCase().includes(currentSearchTerm.toLowerCase())
+                );
+
+                if (filteredMovies.length > 0) {
+                    moviesFound = true;
+                    const section = document.createElement('section');
+                    section.className = 'mb-8';
+                    section.innerHTML = `<h2 class="text-3xl font-bold text-white mb-4">${category}</h2>`;
+                    const rowDiv = document.createElement('div');
+                    rowDiv.className = 'flex overflow-x-auto space-x-4 pb-4 scrollbar-hide';
+                    filteredMovies.forEach(movie => {
+                        rowDiv.appendChild(renderMovieCard(movie));
+                    });
+                    section.appendChild(rowDiv);
+                    movieRowsContainer.appendChild(section);
+                }
+            });
+
+            if (!moviesFound && (currentSearchTerm || currentSelectedGenre !== "All")) {
+                noMoviesFound.classList.remove('hidden');
+            } else {
+                noMoviesFound.classList.add('hidden');
+            }
+        }
+
+        function populateGenreFilter() {
+            genres.forEach(genre => {
+                const option = document.createElement('option');
+                option.value = genre;
+                option.textContent = genre;
+                genreFilterSelect.appendChild(option);
+            });
+        }
+
+        function showModal(modalElement) {
+            modalElement.classList.remove('hidden');
+            modalElement.classList.add('flex');
+        }
+
+        function hideModal(modalElement) {
+            modalElement.classList.add('hidden');
+            modalElement.classList.remove('flex');
+        }
+
+        function showMovieDetails(movie) {
+            selectedMovie = movie;
+            modalMovieTitle.textContent = movie.title;
+            modalMovieImage.src = movie.imageUrl;
+            modalMovieGenre.textContent = movie.genre;
+            modalMovieDescription.textContent = movie.description;
+            showModal(movieDetailsModal);
+        }
+
+        async function fetchGeminiData(prompt, loadingElement, resultElement, type) {
+            loadingElement.classList.remove('hidden');
+            resultElement.textContent = ''; // Clear previous text
+            resultElement.classList.add('hidden'); // Hide text until loaded
+
+            try {
+                const chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+                const payload = { contents: chatHistory };
+                const apiKey = "AIzaSyAjkHU-BJpb6yq7IN7xINpuF_UwWQMQ9Ns"; // API key is handled by Canvas runtime
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    resultElement.textContent = result.candidates[0].content.parts[0].text;
+                } else {
+                    resultElement.textContent = `Could not fetch ${type}. Please try again.`;
+                }
+            } catch (error) {
+                console.error(`Error fetching ${type}:`, error);
+                resultElement.textContent = `Failed to load ${type} due to an error.`;
+            } finally {
+                loadingElement.classList.add('hidden');
+                resultElement.classList.remove('hidden'); // Show text after loading
+            }
+        }
+
+        // Event Listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            populateGenreFilter();
+            updateHeroSection();
+            renderMovieRows();
+            setInterval(cycleFeaturedMovie, 10000); // Cycle featured movie every 10 seconds
+        });
+
+        searchTermInput.addEventListener('input', (e) => {
+            currentSearchTerm = e.target.value;
+            renderMovieRows();
+        });
+
+        genreFilterSelect.addEventListener('change', (e) => {
+            currentSelectedGenre = e.target.value;
+            renderMovieRows();
+        });
+
+        heroMoreInfoBtn.addEventListener('click', () => {
+            showMovieDetails(moviesData[currentFeaturedMovieIndex]);
+        });
+
+        closeDetailsModalBtn.addEventListener('click', () => hideModal(movieDetailsModal));
+        closeRecommendationModalBtn.addEventListener('click', () => hideModal(recommendationModal));
+        closeSynopsisModalBtn.addEventListener('click', () => hideModal(synopsisModal));
+        closeMoodRecommendationModalBtn.addEventListener('click', () => hideModal(moodRecommendationModal));
+
+        getAIRecommendationsBtn.addEventListener('click', () => {
+            if (selectedMovie) {
+                const prompt = `Given the movie '${selectedMovie.title}' which is a '${selectedMovie.genre}' film, suggest 3-5 similar movies and briefly explain why. Focus on movies that are not already in this list: ${moviesData.map(m => m.title).join(', ')}.`;
+                showModal(recommendationModal);
+                fetchGeminiData(prompt, recommendationLoading, recommendationText, 'recommendations');
+            }
+        });
+
+        generateAISynopsisBtn.addEventListener('click', () => {
+            if (selectedMovie) {
+                const prompt = `Generate a concise and engaging synopsis (around 50-70 words) for the movie '${selectedMovie.title}', which is a '${selectedMovie.genre}' film. Do not include spoilers.`;
+                showModal(synopsisModal);
+                fetchGeminiData(prompt, synopsisLoading, synopsisText, 'synopsis');
+            }
+        });
+
+        moodRecommendationsBtn.addEventListener('click', () => {
+            moodInput.value = ""; // Clear previous input
+            moodRecommendationText.textContent = ""; // Clear previous result
+            hideModal(moodRecommendationLoading); // Hide loading spinner
+            showModal(moodRecommendationModal);
+        });
+
+        getMoodRecommendationsBtn.addEventListener('click', () => {
+            moodInputText = moodInput.value.trim();
+            if (!moodInputText) {
+                moodRecommendationText.textContent = "Please enter a mood.";
+                return;
+            }
+            const movieTitles = moviesData.map(m => m.title).join(', ');
+            const prompt = `Given the mood '${moodInputText}', suggest 3-5 movies from the following list that would fit this mood. Briefly explain why for each. Here is the list of available movies: ${movieTitles}.`;
+            fetchGeminiData(prompt, moodRecommendationLoading, moodRecommendationText, 'mood-based recommendations');
+        });
+    </script>
+</body>
+</html>
