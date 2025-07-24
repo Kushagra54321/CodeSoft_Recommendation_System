@@ -19,7 +19,7 @@ CineMatch is a single-page web application designed to provide a Netflix-like ex
 > (Add your screenshots in the `screenshots/` folder and update these paths.)
 
 ![Screenshot 1](front_page.png)
-![Screenshot 2](Recommended_movies.png)
+![Screenshot 2](Recommended_movie.png)
 ![Screenshot 3](Feature.png)
 
 ---
