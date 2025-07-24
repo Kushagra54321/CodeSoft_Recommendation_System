@@ -14,6 +14,11 @@ CineMatch is a single-page web application designed to provide a Netflix-like ex
     * **Dynamic Synopsis Generation:** Generate concise, engaging, and spoiler-free synopses for any movie on demand, offering a fresh perspective on its plot.
     * **Mood-Based Recommendations:** Find movies that match your current mood (e.g., "uplifting," "thrilling," "relaxing") by entering a mood into a dedicated AI feature.
 
+## Screenshot
+  **Front : front_page.png
+  **recommend: Recommended_movies.png
+  **features: Feature.png
+  
 ## 🚀 Technologies Used
 
 * **HTML5:** Provides the foundational structure of the web application.
